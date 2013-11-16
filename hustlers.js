@@ -1,8 +1,8 @@
 var http = require('http');
 var https = require('https');
 var get = require('get');
-
 var fs = require('fs');
+var cheerio = require('cheerio');
 
 var hustlers = [];
 var bounties = [];
@@ -33,7 +33,7 @@ done = function(){
   }
 
   result = 'Bounty Hustlers [aggregated from '+aggr+']<br><table border=1><tr><td>#</td><td width=200px>Handle</td><td width=100px>Cash Reward</td><td>Bounties</td></tr>' + result + '</table>';
-  fs.writeFile("../high-lightning-427/hustlers.html", result, function(err) {
+  fs.writeFile("hustlers_pj.html", result, function(err) {
     if(err) {
         console.log(err);
     } else {
@@ -74,6 +74,7 @@ lookup_hustler = function(name){
     }
   }
   num = hustlers.push({
+
     handles: [name],
     reward: 0,
     bounties: [],
@@ -321,12 +322,18 @@ bounties.push({
   name: "Nokia",
   url: 'http://www.nokia.com/global/security/acknowledgements/',
   cb: function(r, id){
-    var res;
-    var reg  = />(.*?)<\/td><td/g;
-    while ((res = reg.exec(r)) !== null){
-      h = lookup_hustler(res[1]);
-      upgrade_hustler(h,id);
-    }
+    $ = cheerio.load(r);
+    $('td:first-child')
+      .filter(function() {
+	// Remove month/year headers
+        var t = $(this).attr('data-title');
+        return t && t !== '';
+      })
+      .each(function() { 
+        var name = $(this).text().trim(); 
+        h = lookup_hustler(name);
+        upgrade_hustler(h,id);
+      }); 
   }
 })
 
