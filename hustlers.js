@@ -2,6 +2,7 @@ var http = require('http');
 var https = require('https');
 var get = require('get');
 var fs = require('fs');
+var cheerio = require('cheerio');
 var bounties = require('./bounties.js');
 
 /*
@@ -10,12 +11,13 @@ var bounties = require('./bounties.js');
 */
 /* 
 	 But I call myself a programmer, so I've started to clean up the code a little.
+	 First time I code node.js though, so, to quote Egor Homakov, peace.
 	 @peterjaric
 */
-function done(hustlers, aggr, result){
-	var 
-	  details,
-	  filename = process.argv[2] || "../high-lightning-427/hustlers.html"; // Homakov's default target file
+
+function done(hustlers,aggr,result){
+	var details;
+	var filename = process.argv[2] || '../high-lightning-427/hustlers.html'; // Homakov's default target file
 	
   hustlers.sort(function(a,b){
     return b.bounties.length-a.bounties.length
@@ -24,16 +26,16 @@ function done(hustlers, aggr, result){
   for(var i=0,l=hustlers.length;i<l;i++){
   	details = [];
   	for(var key in hustlers[i].details){
-      details.push(key+(hustlers[i].details[key]>1 ? " ("+hustlers[i].details[key]+")" : ''));
+      details.push(key+(hustlers[i].details[key]>1 ? ' ('+hustlers[i].details[key]+')' : ''));
   	}
 		
     var handle = hustlers[i].handles[0];
     if(handle[0] == '@'){
       handle = handle.substr(1);
-      handle = '<a href="http://twitter.com/'+handle+'">@'+handle+"</a>";
+      handle = '<a href="http://twitter.com/'+handle+'">@'+handle+'</a>';
     }
     
-    result += ("<tr><td>"+(i+1)+"</td><td>" + handle + "</td><td>$" + hustlers[i].reward + "</td><td>" + details.join(', ') + "</td></tr>\n")
+    result += ('<tr><td>'+(i+1)+'</td><td>' + handle + '</td><td>$' + hustlers[i].reward + '</td><td>' + details.join(', ') + '</td></tr>\n')
   }
 	
   result = 
@@ -51,7 +53,7 @@ function done(hustlers, aggr, result){
     if(err) {
       console.log(err);
     } else {
-      console.log("The file was saved to " + filename + "!");
+      console.log('The file was saved to ' + filename + '!');
     }
   });
 }
@@ -61,7 +63,6 @@ function done(hustlers, aggr, result){
 
 
 function get_bounties() {
-	
 	var hustlers = [];
 	var requested = bounties.length;
 	var result = '';
@@ -85,7 +86,6 @@ function get_bounties() {
 			}
 		}
 		num = hustlers.push({
-			
 			handles: [name],
 			reward: 0,
 			bounties: [],
@@ -110,25 +110,40 @@ function get_bounties() {
 		return h;
 	}
 	
-	
+	function upgrade_from_selector(html, id, selector) {
+    $ = cheerio.load(html);
+		$(selector).each(function() { 
+			var name = $(this).text().trim();
+      upgrade_hustler(name,id);
+		});
+	}
+
 	for(id=0,l=bounties.length;id<l;id++){
-		var callback = (function(cb,id) {
+		var callback = (function(id) {
+			var cb = bounties[id].cb;
+			var name = bounties[id].name;
 			return function(err,res) {
-				if (err) throw err;
-				cb(res,id,upgrade_hustler);
-				
-				aggr += "| <a href='"+bounties[id].url+"'>"+bounties[id].name+'('+bounties[id].found+')</a> ';
+				if (err) {
+					console.log('Error in bounty ' + name + ': ' + err);
+				}
+
+				if (typeof cb === 'function') {
+					cb(res,id,upgrade_hustler);
+				} else {
+					upgrade_from_selector(res, id, cb);
+				}
+				aggr += '| <a href="'+bounties[id].url+'">'+bounties[id].name+'('+bounties[id].found+')</a> ';
 				console.log(bounties[id].name, 'found', bounties[id].found)
-				if(--requested == 0) done(hustlers, aggr, result);
+				if(--requested == 0) {
+					done(hustlers, aggr, result);
+				}
 			}
-    })(bounties[id].cb,id)
+    })(id);
 		
 		//transport = get //bounties[id].url[4] == 's' ? https : http;
 		get(bounties[id].url).asString(callback);
 	}
 }
 
-
-
-
+// Fetch all bounties
 get_bounties();
